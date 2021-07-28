@@ -7,5 +7,5 @@ pub const WINDOW_HEIGHT: u32 = 600;
 pub const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
 pub const DEVICE_EXTENSIONS: DeviceExtension = DeviceExtension {
-    names: ["VK_KHR_swapchain"]
+    names: ["VK_KHR_swapchain"],
 };

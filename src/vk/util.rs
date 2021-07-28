@@ -1,11 +1,11 @@
 use std::ffi::CString;
 use std::ptr;
 
-use ash::vk;
+use ash::extensions::khr::Swapchain;
+use ash::version::DeviceV1_0;
 use ash::version::EntryV1_0;
 use ash::version::InstanceV1_0;
-use ash::version::DeviceV1_0;
-use ash::extensions::khr::Swapchain;
+use ash::vk;
 
 use winit::event_loop::EventLoop;
 use winit::window::{Window, WindowBuilder};
@@ -13,7 +13,7 @@ use winit::window::{Window, WindowBuilder};
 use crate::vk::platforms;
 
 pub struct DeviceExtension {
-    pub names: [&'static str; 1]
+    pub names: [&'static str; 1],
 }
 
 pub fn init_window(event_loop: &EventLoop<()>, title: &str, width: u32, height: u32) -> Window {
@@ -29,7 +29,7 @@ pub struct SurfaceData {
     pub surface: vk::SurfaceKHR,
 
     pub screen_width: u32,
-    pub screen_height: u32
+    pub screen_height: u32,
 }
 
 pub fn create_instance(entry: &ash::Entry, app_name: &str) -> ash::Instance {
@@ -57,7 +57,7 @@ pub fn create_surface(
     instance: &ash::Instance,
     window: &winit::window::Window,
     screen_width: u32,
-    screen_height: u32
+    screen_height: u32,
 ) -> SurfaceData {
     let surface = unsafe {
         ash_window::create_surface(entry, instance, window, None)
@@ -70,53 +70,51 @@ pub fn create_surface(
         surface_loader,
         surface,
         screen_height,
-        screen_width
+        screen_width,
     }
 }
 
 fn is_physical_device_suitable(
     _instance: &ash::Instance,
     _device: vk::PhysicalDevice,
-    _surface_data: &SurfaceData
+    _surface_data: &SurfaceData,
 ) -> bool {
     true // fuck this
 }
 
 pub fn pick_physical_device(
-    instance: &ash::Instance, 
-    surface_data: &SurfaceData
+    instance: &ash::Instance,
+    surface_data: &SurfaceData,
 ) -> vk::PhysicalDevice {
     let devices = unsafe {
-        instance.enumerate_physical_devices().expect("Failed enumerating devices")
+        instance
+            .enumerate_physical_devices()
+            .expect("Failed enumerating devices")
     };
-    
-    let result = devices.iter().find(|device| {
-        is_physical_device_suitable(
-            instance,
-            **device,
-            surface_data,
-        )
-    });
-    
+
+    let result = devices
+        .iter()
+        .find(|device| is_physical_device_suitable(instance, **device, surface_data));
+
     match result {
         Some(device) => *device,
-        None => panic!("Failed to find suitable GPU!")
+        None => panic!("Failed to find suitable GPU!"),
     }
 }
 
 pub struct QueueFamilyIndices {
     pub graphics_family: Option<u32>,
-    pub present_family: Option<u32>
+    pub present_family: Option<u32>,
 }
 
 impl QueueFamilyIndices {
     pub fn new() -> QueueFamilyIndices {
         QueueFamilyIndices {
             graphics_family: None,
-            present_family: None
+            present_family: None,
         }
     }
-    
+
     pub fn is_complete(&self) -> bool {
         self.graphics_family.is_some() && self.present_family.is_some()
     }
@@ -125,30 +123,29 @@ impl QueueFamilyIndices {
 pub fn create_logical_device(
     instance: &ash::Instance,
     physical_device: vk::PhysicalDevice,
-    surface_data: &SurfaceData
+    surface_data: &SurfaceData,
 ) -> (ash::Device, QueueFamilyIndices) {
     use std::collections::HashSet;
     let indices = find_queue_family(instance, physical_device, surface_data);
-    
+
     let mut unique_families: HashSet<u32> = HashSet::new();
     unique_families.insert(indices.graphics_family.unwrap());
     unique_families.insert(indices.present_family.unwrap());
-    
+
     let mut queue_create_infos: Vec<vk::DeviceQueueCreateInfo> = vec![];
     let queue_priorities = [1.0f32];
-    
-    
+
     for family in &unique_families {
         queue_create_infos.push(vk::DeviceQueueCreateInfo {
             queue_family_index: *family,
             p_queue_priorities: queue_priorities.as_ptr(),
             queue_count: 1,
-            ..Default::default() 
+            ..Default::default()
         });
     }
-    
-    let enabled_extension_names = [ Swapchain::name().as_ptr() ];
-    
+
+    let enabled_extension_names = [Swapchain::name().as_ptr()];
+
     let device_create_info = vk::DeviceCreateInfo {
         queue_create_info_count: queue_create_infos.len() as u32,
         p_queue_create_infos: queue_create_infos.as_ptr(),
@@ -156,50 +153,53 @@ pub fn create_logical_device(
         enabled_extension_count: enabled_extension_names.len() as u32,
         ..Default::default()
     };
-    
+
     let device: ash::Device = unsafe {
         instance
             .create_device(physical_device, &device_create_info, None)
             .expect("Failed to create logical device!")
     };
-    
+
     (device, indices)
 }
-    
-pub fn find_queue_family(instance: &ash::Instance, physical_device: vk::PhysicalDevice, surface_data: &SurfaceData) -> QueueFamilyIndices {
+
+pub fn find_queue_family(
+    instance: &ash::Instance,
+    physical_device: vk::PhysicalDevice,
+    surface_data: &SurfaceData,
+) -> QueueFamilyIndices {
     let mut indices = QueueFamilyIndices::new();
-    let queue_families = unsafe { 
-        instance.get_physical_device_queue_family_properties(physical_device) 
-    };
-    
+    let queue_families =
+        unsafe { instance.get_physical_device_queue_family_properties(physical_device) };
+
     let mut i: u32 = 0;
     for queue_family in queue_families {
-        if queue_family.queue_count > 0 
+        if queue_family.queue_count > 0
             && queue_family.queue_flags.contains(vk::QueueFlags::GRAPHICS)
         {
             indices.graphics_family = Some(i);
         }
-        
+
         let present_support = unsafe {
             surface_data
                 .surface_loader
                 .get_physical_device_surface_support(physical_device, i, surface_data.surface)
                 .expect("Could not determine physical device surface support!")
         };
-        
+
         if queue_family.queue_count > 0 && present_support {
             indices.present_family = Some(i);
         }
-        
+
         if indices.is_complete() {
             break;
         }
-        
+
         i += 1;
     }
-    
-    indices 
-    // TODO: figure out a way to remove Option types for QueueFamilyIndices, and have 
+
+    indices
+    // TODO: figure out a way to remove Option types for QueueFamilyIndices, and have
     // guarantees that the right indices have been found
 }
 
@@ -413,7 +413,6 @@ pub fn create_graphics_pipeline(
     (graphics_pipelines[0], pipeline_layout)
 }
 
-
 pub fn create_shader_module(device: &ash::Device, code: Vec<u8>) -> vk::ShaderModule {
     let shader_module_create_info = vk::ShaderModuleCreateInfo {
         s_type: vk::StructureType::SHADER_MODULE_CREATE_INFO,
@@ -429,7 +428,6 @@ pub fn create_shader_module(device: &ash::Device, code: Vec<u8>) -> vk::ShaderMo
             .expect("Failed to create Shader Module!")
     }
 }
-
 
 pub fn create_command_pool(
     device: &ash::Device,
@@ -448,7 +446,6 @@ pub fn create_command_pool(
             .expect("Failed to create Command Pool!")
     }
 }
-
 
 pub fn create_command_buffers(
     device: &ash::Device,

@@ -1,12 +1,12 @@
 mod consts;
-mod util;
 mod platforms;
-mod swapchain;
 mod renderpass;
+mod swapchain;
+mod util;
 
-use crate::vk::util::*;
 use crate::vk::consts::*;
 use crate::vk::swapchain::create_swapchain;
+use crate::vk::util::*;
 
 use ash::version::DeviceV1_0;
 // use ash::version::EntryV1_0;
@@ -57,79 +57,65 @@ pub struct VulkanApp {
 impl VulkanApp {
     pub fn new(event_loop: &EventLoop<()>) -> VulkanApp {
         let window = util::init_window(
-            event_loop, 
-            consts::WINDOW_TITLE, 
-            consts::WINDOW_WIDTH, 
-            consts::WINDOW_HEIGHT
+            event_loop,
+            consts::WINDOW_TITLE,
+            consts::WINDOW_WIDTH,
+            consts::WINDOW_HEIGHT,
         );
 
         let entry = unsafe { ash::Entry::new().unwrap() };
         let instance = util::create_instance(&entry, APP_NAME);
-        
-        let surface_data =
-            create_surface(
-                &entry,
-                &instance,
-                &window,
-                WINDOW_WIDTH,
-                WINDOW_HEIGHT
-            );
-        
+
+        let surface_data = create_surface(&entry, &instance, &window, WINDOW_WIDTH, WINDOW_HEIGHT);
+
         let physical_device = util::pick_physical_device(&instance, &surface_data);
-        let (device, family_indices) = util::create_logical_device(
-            &instance,
-            physical_device,
-            &surface_data
-        );
-        
-        let graphics_queue = 
+        let (device, family_indices) =
+            util::create_logical_device(&instance, physical_device, &surface_data);
+
+        let graphics_queue =
             unsafe { device.get_device_queue(family_indices.graphics_family.unwrap(), 0) };
-        let present_queue = 
+        let present_queue =
             unsafe { device.get_device_queue(family_indices.present_family.unwrap(), 0) };
-        
+
         let swapchain_data = create_swapchain(
-            &instance, 
+            &instance,
             &device,
             &window,
             physical_device,
             &surface_data,
-            &family_indices
+            &family_indices,
         );
-        
+
         let swapchain_imageviews = swapchain::create_swapchain_image_views(
             &device,
             swapchain_data.format,
-            &swapchain_data.images
+            &swapchain_data.images,
         );
-        
+
         let render_pass = renderpass::create_render_pass(&device, swapchain_data.format);
-        
-        let (graphics_pipeline, pipeline_layout) = 
+
+        let (graphics_pipeline, pipeline_layout) =
             util::create_graphics_pipeline(&device, render_pass, swapchain_data.extent);
-        
-        let swapchain_framebuffers = 
-            swapchain::create_framebuffers(
-                &device,
-                render_pass,
-                &swapchain_imageviews,
-                swapchain_data.extent
-            );
-        
-        let command_pool =
-            util::create_command_pool(&device, &family_indices);
-        
-        let command_buffers =
-            util::create_command_buffers(
-                &device,
-                command_pool,
-                graphics_pipeline,
-                &swapchain_framebuffers,
-                render_pass,
-                swapchain_data.extent
-                );
-        
-        let sync =
-            VulkanApp::create_sync_objects(&device);
+
+        let swapchain_framebuffers = swapchain::create_framebuffers(
+            &device,
+            render_pass,
+            &swapchain_imageviews,
+            swapchain_data.extent,
+        );
+
+        let command_pool = util::create_command_pool(&device, &family_indices);
+
+        let command_buffers = util::create_command_buffers(
+            &device,
+            command_pool,
+            graphics_pipeline,
+            &swapchain_framebuffers,
+            render_pass,
+            swapchain_data.extent,
+        );
+
+        let sync = VulkanApp::create_sync_objects(&device);
 
         VulkanApp {
             window: window,
@@ -137,31 +123,31 @@ impl VulkanApp {
             instance,
             surface_loader: surface_data.surface_loader,
             surface: surface_data.surface,
-            
+
             _physical_device: physical_device,
             device,
-            
+
             graphics_queue,
             present_queue,
-            
+
             swapchain_loader: swapchain_data.swapchain_loader,
             swapchain: swapchain_data.swapchain,
             _swapchain_images: swapchain_data.images,
             _swapchain_format: swapchain_data.format,
             _swapchain_extent: swapchain_data.extent,
-            
+
             swapchain_imageviews,
             swapchain_framebuffers,
-            
+
             render_pass,
             graphics_pipeline,
             pipeline_layout,
-            
+
             command_buffers,
             command_pool,
 
             sync,
-            current_frame: 0
+            current_frame: 0,
         }
     }
 
@@ -231,7 +217,7 @@ impl VulkanApp {
 
         self.current_frame = (self.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
     }
-    
+
     fn create_sync_objects(device: &ash::Device) -> SyncObjects {
         let mut sync_objects = SyncObjects {
             image_available_semaphores: vec![],
@@ -302,6 +288,7 @@ impl Drop for VulkanApp {
         unsafe {
             for _ in 0..MAX_FRAMES_IN_FLIGHT {}
             self.instance.destroy_instance(None);
+            // TODO: actually properly dispose of all fields of VulkanApp
         }
     }
 }
