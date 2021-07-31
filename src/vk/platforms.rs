@@ -57,12 +57,11 @@ pub unsafe fn create_surface<E: EntryV1_0, I: InstanceV1_0>(
     use std::ptr;
     use winapi::shared::windef::HWND;
     use winapi::um::libloaderapi::GetModuleHandleW;
-    use winit::platform::unix::WindowExtUnix;
     use winit::platform::windows::WindowExtWindows;
 
     let hwnd = window.hwnd() as HWND;
     let hinstance = GetModuleHandleW(ptr::null()) as *const c_void;
-    let win32_create_info = vk::XLibSurfaceCreateInfoKHR {
+    let win32_create_info = vk::XlibSurfaceCreateInfoKHR {
         hinstance,
         hwnd: hwnd as *const c_void,
         ..Default::default()
