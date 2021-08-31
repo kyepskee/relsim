@@ -5,6 +5,7 @@ use crate::consts::*;
 
 type Tensor0 = f64;
 
+#[derive(Clone, Copy)]
 pub struct Tensor1 {
     pub vals: [f64; DIMENSIONS],
 }
