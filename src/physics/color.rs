@@ -153,5 +153,9 @@ pub fn freq_to_rgb(l: f64, amp: f64) -> rustbitmap::Rgba {
         t = (l - 475.0) / (560.0 - 475.0);
         b = 0.7 - (t) + (0.30 * t * t);
     }
-    rustbitmap::Rgba::rgb((r * 256.0 * amp) as u8, (g * 256.0 * amp) as u8, (b * 256.0 * amp) as u8)
+    rustbitmap::Rgba::rgb(
+        (r * 256.0 * amp) as u8,
+        (g * 256.0 * amp) as u8,
+        (b * 256.0 * amp) as u8,
+    )
 }

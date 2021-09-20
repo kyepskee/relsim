@@ -13,8 +13,8 @@ const LOWER_BOUND: f64 = -10f64;
 const UPPER_BOUND: f64 = 10f64;
 const DISTANCE_TO_SCREEN: f64 = 10f64;
 
-const INNER_RADIUS: f64 = 2f64;
-const OUTER_RADIUS: f64 = 5f64;
+const INNER_RADIUS: f64 = 2f64; //according to my calculations the smallest stable orbit is 1.5*r_s (double check that)
+const OUTER_RADIUS: f64 = 10f64;
 const THICKNESS: f64 = 0.1f64;
 const SURFACE: Tensor1 = Tensor1 {
     vals: [0f64, 0f64, 1f64, -0.1f64],
@@ -89,43 +89,171 @@ pub fn chris(x: f64, y: f64, z: f64, t: f64) -> Tensor3 {
     return output;
 }
 
+fn doppler(
+    g: Tensor2,
+    source_velocity: Tensor1,
+    ray_velocity: Tensor1,
+    proper_time_period: f64,
+) -> f64 {
+    //this function takes the period as expierienced by source and outputs pieriod as time-coordinate interval
+    //this function is this time straight from paper about special relativity (the formulation without tensors) so if physics seems incorrect check this function
+    //strictly speaking light doesnt have a 4-velocity so ray_velocity should be called the smart word for it but A: i dont remember it B: it would be confusing
+    //also this function propably assumes some type of symmetry (continous time translation i think) but at this point i dont care
+
+    let mut source_velocity_3d = source_velocity;
+    let mut ray_velocity_3d = ray_velocity;
+
+    let normalization_factor_source = g.vals[0][0].sqrt() * source_velocity_3d.vals[0];
+    let normalization_factor_ray = g.vals[0][0].sqrt() * ray_velocity_3d.vals[0];
+
+    loop_over!(miu => {
+        source_velocity_3d.vals[miu]=source_velocity_3d.vals[miu]/normalization_factor_source;
+        ray_velocity_3d.vals[miu]=ray_velocity_3d.vals[miu]/normalization_factor_ray;
+    });
+
+    source_velocity_3d.vals[0] = 0f64;
+    ray_velocity_3d.vals[0] = 0f64;
+
+    let source_vel_length: f64 = add_over!(miu, v => {g.vals[miu][v]*source_velocity_3d.vals[miu]*source_velocity_3d.vals[v]}).abs().sqrt();
+    let ray_vel_length: f64 =
+        add_over!(miu, v => {g.vals[miu][v]*ray_velocity_3d.vals[miu]*ray_velocity_3d.vals[v]})
+            .abs()
+            .sqrt();
+
+    let dot_product: f64 =
+        add_over!(miu, v => {g.vals[miu][v]*source_velocity_3d.vals[miu]*ray_velocity_3d.vals[v]});
+
+    let cos_theta = dot_product / (source_vel_length * ray_vel_length); //angle between the two vectors
+                                                                        //its actually phi' int the paper becouse of the inversed frames of refrance
+
+    let cos_theta_prime = (cos_theta - source_vel_length) / (1.0 - source_vel_length * cos_theta);
+    //let cos_theta_prime = (cos_theta+source_vel_length)/(1.0+source_vel_length*cos_theta); //angle of the ray in the "stationary" frame of refrence
+    //POSSIBLE SIGN ERROR HERE
+
+    let output_period = proper_time_period * ((1.0 - source_vel_length * source_vel_length).sqrt())
+        / (1.0 - cos_theta_prime * source_vel_length);
+
+    //return proper_time_period*(1.0-0.1f64*cos_theta);
+    return output_period;
+}
+
+fn doppler_amplitude(
+    g: Tensor2,
+    source_velocity: Tensor1,
+    ray_velocity: Tensor1,
+    proper_time_period: f64,
+) -> f64 {
+    //returns scaling factor for amplitude
+
+    let mut source_velocity_3d = source_velocity;
+    let mut ray_velocity_3d = ray_velocity;
+
+    let normalization_factor_source = g.vals[0][0].sqrt() * source_velocity_3d.vals[0];
+    let normalization_factor_ray = g.vals[0][0].sqrt() * ray_velocity_3d.vals[0];
+
+    loop_over!(miu => {
+        source_velocity_3d.vals[miu]=source_velocity_3d.vals[miu]/normalization_factor_source;
+        ray_velocity_3d.vals[miu]=ray_velocity_3d.vals[miu]/normalization_factor_ray;
+    });
+
+    source_velocity_3d.vals[0] = 0f64;
+    ray_velocity_3d.vals[0] = 0f64;
+
+    let source_vel_length: f64 = add_over!(miu, v => {g.vals[miu][v]*source_velocity_3d.vals[miu]*source_velocity_3d.vals[v]}).abs().sqrt();
+    let ray_vel_length: f64 =
+        add_over!(miu, v => {g.vals[miu][v]*ray_velocity_3d.vals[miu]*ray_velocity_3d.vals[v]})
+            .abs()
+            .sqrt();
+
+    let dot_product: f64 =
+        add_over!(miu, v => {g.vals[miu][v]*source_velocity_3d.vals[miu]*ray_velocity_3d.vals[v]});
+
+    let cos_theta = dot_product / (source_vel_length * ray_vel_length); //angle between the two vectors
+                                                                        //its actually phi' int the paper becouse of the inversed frames of refrance
+
+    let mut cos_theta_prime =
+        (cos_theta - source_vel_length) / (1.0 - source_vel_length * cos_theta);
+    //let cos_theta_prime = (cos_theta+source_vel_length)/(1.0+source_vel_length*cos_theta); //angle of the ray in the "stationary" frame of refrence
+    //POSSIBLE SIGN ERROR HERE
+
+    //println!("cos_theta: {}, v/c: {}", cos_theta_prime, source_vel_length);
+
+    return (1.0 - cos_theta_prime * source_vel_length)
+        / ((1.0f64 - source_vel_length * source_vel_length).sqrt());
+}
+
 fn collision(pos: Tensor1, vel: Tensor1, start_pos: Tensor1, start_vel: Tensor1) -> Option<Rgba> {
     let r =
         (pos.vals[1] * pos.vals[1] + pos.vals[2] * pos.vals[2] + pos.vals[3] * pos.vals[3]).sqrt();
     if r >= SKY_BOX {
-        return Some(Rgba::rgb(0u8, 0u8, 100u8));
+        return Some(Rgba::rgb(0u8, 0u8, 0u8 /*100u8*/));
     } else if r <= rs * (1.0 + 2.0 * DT) {
         return Some(Rgba::rgb(0u8, 0u8, 0u8));
     } else if r <= OUTER_RADIUS
         && r >= INNER_RADIUS
         && add_over!(miu => { pos.vals[miu] * SURFACE.vals[miu] }).abs() <= THICKNESS
     {
-        let mut wavelength = 590f64;
-        let mut amplitude = 1f64;
+        let local_g = g(pos.vals[1], pos.vals[2], pos.vals[3], pos.vals[0]);
 
-        /*let mut velocity_prime = vel;
-        velocity_prime.vals[0] = 0f64;
+        //let mut frequency = 500f64;
+        let mut amplitude = 0.5f64;
 
-        let mut start_velocity_prime = start_vel;
-        start_velocity_prime.vals[0] = 0f64;
+        let mut source_velocity = pos;
 
-        wavelength = wavelength
-            * add_over!(miu, v => {
-                g(pos.vals[1], pos.vals[2], pos.vals[3], pos.vals[0]).vals[miu][v] *
-                start_velocity_prime.vals[miu] *
-                start_velocity_prime.vals[v]
-            })
-            / add_over!(miu, v => {
-                g(pos.vals[1], pos.vals[2], pos.vals[3], pos.vals[0]).vals[miu][v] *
-                velocity_prime.vals[miu] *
-                velocity_prime.vals[v]
-            });*/
+        source_velocity.vals[0] = (1f64 / local_g.vals[0][0].abs()).sqrt();
+        source_velocity.vals[3] = pos.vals[1];
+        source_velocity.vals[1] = -pos.vals[3];
+        source_velocity.vals[2] = 0f64;
 
-        return Some(Rgba::rgb(
-            (wavelength / 590f64 * 200f64) as u8,
-            (wavelength / 590f64 * 100f64) as u8,
-            (wavelength / 590f64 * 100f64) as u8,
-        ));
+        let mut normalization_factor = 0f64;
+
+        for i in 1..4 {
+            for j in 1..4 {
+                normalization_factor +=
+                    local_g.vals[i][j] * source_velocity.vals[i] * source_velocity.vals[j];
+            }
+        }
+
+        normalization_factor = normalization_factor.abs().sqrt();
+
+        for i in 1..4 {
+            source_velocity.vals[i] =
+                source_velocity.vals[i] * (rs / (2.0 * r)).sqrt() / normalization_factor;
+        }
+
+        let mut period = 600f64; //1f64/frequency;
+
+        let mut ray_vel = vel;
+
+        loop_over!(miu => {ray_vel.vals[miu] = -ray_vel.vals[miu]});
+
+        //println!("DEBUG, SOURCE_VELOCITY: {:#?}", source_velocity);
+
+        period = doppler(local_g.clone(), source_velocity, ray_vel, period);
+        amplitude =
+            amplitude * doppler_amplitude(local_g.clone(), source_velocity, ray_vel, period);
+
+        period = g(
+            start_pos.vals[1],
+            start_pos.vals[2],
+            start_pos.vals[3],
+            start_pos.vals[0],
+        )
+        .vals[0][0]
+            .abs()
+            .sqrt()
+            / local_g.vals[0][0].abs().sqrt()
+            * period;
+        //local_g.vals[0][0].abs().sqrt()/g(start_pos.vals[1], start_pos.vals[2], start_pos.vals[3], start_pos.vals[0]).vals[0][0].abs().sqrt()*period;
+
+        //SCALING PERIOD AROUND MIDDLE OF THE SCALE
+
+        period = 0.3f64 * (period - 500f64) + 500f64; //this line is chosen to look good :)
+
+        return Some(color::freq_to_rgb(
+            period,
+            0.5f64 + 2f64 * (amplitude - 0.5f64),
+        )); //the 4 factor in amplitude is chosen to look nice :)
     }
     return None;
 }

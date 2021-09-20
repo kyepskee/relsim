@@ -5,7 +5,7 @@ use crate::consts::*;
 
 type Tensor0 = f64;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Tensor1 {
     pub vals: [f64; DIMENSIONS],
 }
@@ -16,7 +16,7 @@ impl Default for Tensor1 {
         }
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Tensor2 {
     pub vals: [[f64; DIMENSIONS]; DIMENSIONS],
 }
@@ -50,6 +50,17 @@ impl Default for Tensor4 {
 
 const_assert_eq!(DIMENSIONS, 4); // inverse currently functions only for 4x4 matrices
 impl Tensor2 {
+    pub fn default_minkowski() -> Tensor2 {
+        return Tensor2 {
+            vals: [
+                [1f64, 0f64, 0f64, 0f64],
+                [0f64, -1f64, 0f64, 0f64],
+                [0f64, 0f64, -1f64, 0f64],
+                [0f64, 0f64, 0f64, -1f64],
+            ],
+        };
+    }
+
     pub fn inv(&self) -> Option<Tensor2> {
         let mut inv = [
             [
