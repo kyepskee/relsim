@@ -8,11 +8,12 @@ Make sure you have Vulkan's drivers and LunarG SDK for your platform installed.
 
 ## Running
 1. eddit the code so it does what you want it to
-2. ```sh
+2. 
+```sh
 cargo run
 ```
 
-## what it does (how do i make it big and bold?)
+## what it does
 
 it currently can do 2 things:
 
@@ -23,5 +24,5 @@ it currently can do 2 things:
   as you can clearly see, our actually looks good (unlike the wikipedia one lol)
   
     B. show geodesics ("straight" lines) around objects like star (again see below):
-    ![obraz](https://user-images.githubusercontent.com/63457978/133993202-fb490302-9069-4ea3-8182-cfa04b9eac01.png)
+![obraz](https://user-images.githubusercontent.com/63457978/133993202-fb490302-9069-4ea3-8182-cfa04b9eac01.png)
 this one unfortunately looks like shit but we have what we have :(
